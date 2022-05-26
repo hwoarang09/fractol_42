@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 from math import log
@@ -30,7 +30,7 @@ def stability2(z,c,max_iterations, escape_radius):
     return  max(0.0, min(value, 1.0))
 
 
-# In[ ]:
+# In[7]:
 
 
 import dash
@@ -42,6 +42,9 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import json
+import time
+import multiprocess
+from image_func import image_func
 width, height = 512, 512
 
 
@@ -71,13 +74,13 @@ app.layout = html.Div([
                 html.Div([
                           html.H3('Escape_radius',
                             style={'margin' : '0','color': 'black','display':'inline-block', 'float' : 'left'}),
-                          dcc.Input(id='escape_radius', type='number', debounce=True, min=2, step=1, value = 10,
+                          dcc.Input(id='escape_radius', type='number', debounce=True, min=2, max=1000,step=1, value = 10,
                             style={'width' : '50px', 'margin-left' : '10px', 'margin-right' : '30px','display' : 'inline-block', 'float' : 'left'})
                          ],style = {'display' : 'inline-block','float':'left'}),
                 html.Div([
                           html.H3('Max_iterations ',
                             style={'margin' : '0','color': 'black','display':'inline-block', 'float' : 'left'}),
-                          dcc.Input(id='max_iterations', type='number', debounce=True, min=2, step=1, value = 26,
+                          dcc.Input(id='max_iterations', type='number', debounce=True, min=2, max=1250,step=1, value = 26,
                             style={'width' : '50px', 'margin-left' : '10px','display' : 'inline-block', 'float' : 'left'})
                          ],style = {'display' : 'inline-block','float':'left'})
             ], style = {'display' : 'flex', 'float':'none'}),
@@ -307,14 +310,45 @@ def update_figure(n_clicks,escape_radius,max_iterations,move_x,move_y,scale):
 
     move_x = float(move_x) / scale
     move_y = float(move_y) / scale
+
     
+
+    
+
+    image = Image.new(mode=GRAYSCALE, size=(width, height))
+    image1 = Image.new(mode=GRAYSCALE, size=(width, int(height/4)))
+    image2 = Image.new(mode=GRAYSCALE, size=(width, int(height/4)))
+    image3 = Image.new(mode=GRAYSCALE, size=(width, int(height/4)))
+    image4 = Image.new(mode=GRAYSCALE, size=(width, int(height/4)))
+
+    arg_list = [
+        [image1, 0, int(height*(1/4)), width, move_x, move_y, max_iterations, escape_radius,scale],
+        [image2, int(height*(1/4)),int(height*(2/4)), width, move_x, move_y, max_iterations, escape_radius,scale],
+        [image3, int(height*(2/4)),int(height*(3/4)), width, move_x, move_y, max_iterations, escape_radius,scale],
+        [image4, int(height*(3/4)),int(height*(4/4)), width, move_x, move_y, max_iterations, escape_radius,scale]
+    ]
+
+    start = time.time()
+    pool = multiprocess.Pool(processes = 4)
+    job=(pool.map(image_func, arg_list))
+    pool.close()
+    pool.join()
+    print(f'----after pool {time.time()-start} seconds -----')
+
+    image_sum = Image.new(mode=GRAYSCALE, size=(width, height))
+    image_sum.paste(job[0], (0,0))
+    image_sum.paste(job[1], (0,128))
+    image_sum.paste(job[2], (0,256))
+    image_sum.paste(job[3], (0,384))
+    '''
     image = Image.new(mode=GRAYSCALE, size=(width, height))
     for y in range(height):
         for x in range(width):
             c = scale * complex((x +move_x) - width / 2, height / 2 - (y + move_y) )
             instability = 1 - stability(c,max_iterations, escape_radius)
             image.putpixel((x, y), int(instability * 255))
-    fig = px.imshow(image,color_continuous_scale="RdGy",range_color=[0,255],
+    '''                
+    fig = px.imshow(image_sum,color_continuous_scale="RdGy",range_color=[0,255],
                    title="Mandelbrot Sets Fractal")    
       
     ##fig.update_traces(hovertemplate="x: %{x / scale} <br> y: %{float(y)}<extra></extra>")
@@ -323,6 +357,7 @@ def update_figure(n_clicks,escape_radius,max_iterations,move_x,move_y,scale):
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)    
     fig.update_layout(margin_b=50, margin_l = 0, margin_r=0, margin_t = 50)
+    print(f'----before fig {time.time()-start} seconds -----')
     return fig
 
 
